@@ -1,11 +1,10 @@
 from django.db import models
 
 # Create your models here.
-class Item(models.Model):
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
-    price = models.DecimalField(max_digits=8, decimal_places=2)
+class ChatMessage(models.Model):
+    text = models.TextField()
+    sender = models.CharField(max_length=10)  # "user" or "bot"
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
+        return f"{self.sender}: {self.text[:20]}"
