@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework import viewsets
-from .models import Item
-from .serializers import ItemSerializer
+from .models import ChatMessage
+from .serializers import ChatMessageSerializer
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,9 +11,9 @@ from .services.repair_analyzer import analyzer, humanize_analysis
 import base64
 from openai import OpenAI
 
-class ItemViewSet(viewsets.ModelViewSet):
-    queryset = Item.objects.all()
-    serializer_class = ItemSerializer
+class ChatMessageViewSet(viewsets.ModelViewSet):
+    queryset = ChatMessage.objects.all().order_by("created_at")
+    serializer_class = ChatMessageSerializer
 
 @api_view(["POST"])
 def analyze_image_view(request):

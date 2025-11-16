@@ -8,11 +8,11 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ItemViewSet, analyze_image_view, analyze_image_upload_view
+from .views import ChatMessageViewSet, analyze_image_view, analyze_image_upload_view
 
 
 router = DefaultRouter()
-router.register(r"items", ItemViewSet)
+router.register(r"messages", ChatMessageViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),
