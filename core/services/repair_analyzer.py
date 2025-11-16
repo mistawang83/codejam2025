@@ -4,85 +4,85 @@ import os
 import json
 from openai import OpenAI
 
-REPAIR_ANALYSIS_PROMPT = """
-You are an expert home repair and renovation advisor.
+REPAIR_ANALYSIS_PROMPT = """You are an expert home repair advisor. Analyze the uploaded image thoroughly and provide comprehensive repair guidance.
 
-The user has uploaded a photo of a real home repair or renovation situation.
-You are given:
-- A natural language description of the problem and what they want to achieve
-- Their DIY skill level
-- Their budget preference
-- Their location (for pricing estimates)
-
-User description:
-\"\"\"{description}\"\"\"
-
-User skill level: {skill_level}
-Budget preference: {budget}
+User's problem: "{description}"
+Skill level: {skill_level}
 Location (for pricing): {location}
 
-You MUST respond with valid JSON only, no extra text, with this structure:
+Respond with ONLY this JSON (no markdown, no extra text):
 
 {{
-  "diagnosis": "Short summary of what the issue is based on the image + text.",
-  "projectCategory": "small_repair or renovation",
-  "scope": "One or two sentences describing the overall scope of the work.",
+  "diagnosis": "Detailed description of the issue based on what you see in the image. Include size estimates, material type, and extent of damage.",
+  "severity": "minor/moderate/severe",
+  "difficulty": "Beginner/Intermediate/Advanced",
+  "estimated_repair_success_rate": "Percentage chance of successful DIY repair",
   "materials": [
     {{
-      "name": "Name of material",
-      "quantity": 0,
-      "unit": "piece / ft / sq ft / liter / etc",
-      "estimated_unit_cost": 0.0,
-      "notes": "Any important selection details."
+      "name": "Specific material name and brand recommendation",
+      "quantity": 1,
+      "unit": "piece/ft/sq ft/gallon/oz",
+      "estimated_unit_cost": 0.00,
+      "where_to_buy": "Home Depot, Lowes, Amazon, etc.",
+      "notes": "Why this material, any alternatives, quality considerations"
     }}
   ],
   "tools": [
-    "Tool 1",
-    "Tool 2"
+    {{
+      "name": "Tool name",
+      "required": true,
+      "estimated_cost": 0.00,
+      "can_rent": true,
+      "purpose": "What this tool is used for in this repair"
+    }}
   ],
   "steps": [
     {{
       "step_number": 1,
-      "title": "Short step title",
-      "details": "Clear, actionable instructions tailored to the photo.",
-      "estimated_time_minutes": 0
+      "title": "Clear step title",
+      "details": "Detailed, beginner-friendly instructions. Include specific measurements, techniques, and what to look for.",
+      "estimated_time_minutes": 10,
+      "pro_tips": ["Helpful tip for better results"],
+      "common_mistakes": ["What to avoid"]
     }}
   ],
   "timeEstimate": {{
-    "active_time_minutes": 0,
-    "drying_or_wait_time_minutes": 0,
-    "total_calendar_time_hours": 0
+    "active_work_minutes": 0,
+    "drying_curing_wait_minutes": 0,
+    "total_calendar_time_hours": 0.0,
+    "best_time_to_start": "Morning/afternoon recommendation and why"
   }},
-  "difficulty": "Beginner or Intermediate or Advanced",
   "cost": {{
-    "currency": "USD",
-    "diy_materials_cost_estimate": 0.0,
-    "diy_tool_rental_cost_estimate": 0.0,
-    "pro_labor_cost_estimate": 0.0,
-    "pro_total_cost_estimate": 0.0,
-    "notes": "Any key assumptions or caveats about cost."
+    "diy_materials_cost_estimate": 0.00,
+    "diy_tools_cost_if_buying": 0.00,
+    "diy_total_cost": 0.00,
+    "pro_labor_cost_estimate": 0.00,
+    "pro_materials_cost_estimate": 0.00,
+    "pro_total_cost_estimate": 0.00,
+    "potential_savings": 0.00,
+    "cost_notes": "Any assumptions about pricing or regional variations"
   }},
   "safetyNotes": [
-    "Safety note 1",
-    "Safety note 2"
+    "Detailed safety warning with explanation of why it matters"
   ],
+  "required_ppe": ["Safety glasses", "Gloves", "etc."],
   "shouldCallProfessional": false,
-  "professionalEscalationReasons": [
-    "Reason 1 they should call a pro",
-    "Reason 2 they should call a pro"
-  ]
+  "whyCallPro": [
+    "Specific reason why a professional might be needed"
+  ],
+  "warningSignsToStop": [
+    "Signs during repair that indicate you should stop and call a pro"
+  ],
+  "aftercare": "What to do after the repair is complete to ensure longevity",
+  "prevention_tips": "How to prevent this issue from happening again"
 }}
-
-Remember: output ONLY JSON. No markdown, no explanation.
 """
-
 
 
 class RepairAnalyzer:
     def __init__(self, api_key: str | None = None):
-        # Uses env var if api_key not passed
         self.client = OpenAI(api_key=api_key or os.environ.get("OPENAI_API_KEY"))
-        self.model = "gpt-4o"  # or "gpt-4o-mini" if you prefer cheaper
+        self.model = "gpt-4o-mini"  # Use full model for detailed analysis
 
     def analyze_repair(
         self,
@@ -96,7 +96,6 @@ class RepairAnalyzer:
         prompt = REPAIR_ANALYSIS_PROMPT.format(
             description=description,
             skill_level=skill_level,
-            budget=budget,
             location=location,
         )
 
@@ -113,10 +112,7 @@ class RepairAnalyzer:
                                     "url": f"data:{media_type};base64,{image_base64}",
                                 },
                             },
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            },
+                            {"type": "text", "text": prompt},
                         ],
                     }
                 ],
@@ -125,92 +121,65 @@ class RepairAnalyzer:
             )
 
             response_text = response.choices[0].message.content
-            analysis = self._parse_json_response(response_text)
-
-            analysis["_metadata"] = {
-                "model_used": self.model,
-                "tokens_used": {
-                    "prompt": response.usage.prompt_tokens,
-                    "completion": response.usage.completion_tokens,
-                    "total": response.usage.total_tokens,
-                },
-            }
+            analysis = self._parse_json(response_text)
 
             return {"success": True, "data": analysis}
 
-        except json.JSONDecodeError as e:
-            return {
-                "success": False,
-                "error": f"Failed to parse AI response as JSON: {e}",
-                "error_type": "parse_error",
-            }
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e),
-                "error_type": "unknown_error",
-            }
+            return {"success": False, "error": str(e)}
 
-    def _parse_json_response(self, response_text: str) -> dict:
-        cleaned = response_text.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
-        return json.loads(cleaned)
+    def _parse_json(self, text: str) -> dict:
+        text = text.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        return json.loads(text.strip())
 
-
-def humanize_analysis(analysis: dict, original_description: str) -> str:
-    """
-    Take the structured JSON analysis and let ChatGPT talk
-    like a friendly, expert contractor to the user.
-    """
+def humanize_analysis(analysis: dict, description: str) -> str:
+    """Convert JSON analysis to detailed, friendly contractor advice."""
     client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-    analysis_json = json.dumps(analysis, ensure_ascii=False, indent=2)
+    analysis_json = json.dumps(analysis, indent=2)
 
-    system_msg = (
-        "You are a friendly, expert home repair advisor. "
-        "You are talking to a non-expert homeowner. "
-        "Be clear, encouraging, and practical."
-    )
+    prompt = f"""You are a friendly, experienced contractor giving detailed advice to a homeowner. 
 
-    user_msg = f"""
-The user originally described their problem as:
+The homeowner described their problem as: "{description}"
 
-\"\"\"{original_description}\"\"\"
-
-Here is a structured analysis of their situation as JSON:
-
+Here is the complete analysis:
 {analysis_json}
 
-Using ONLY the information in that analysis, speak to the user like a real contractor would:
+Write a comprehensive but conversational response (300-400 words) that covers:
 
-- Briefly restate what the problem is in plain language.
-- Tell them if this is reasonable for them to DIY given the difficulty.
-- Summarize estimated time and cost (DIY vs hiring a pro).
-- Give a high-level step-by-step plan (not too technical).
-- Mention any important safety warnings.
-- If the analysis suggests they should call a professional, be honest about that and explain why.
+1. What's wrong - Explain the diagnosis in plain language
+2. Can they DIY it? - Based on difficulty and their situation
+3. Cost breakdown - DIY savings vs hiring a pro, be specific with numbers
+4. Time commitment - Realistic time including drying/waiting
+5. Key steps overview - Give a numbered list like "1. First step  2. Second step  3. Third step" etc.
+6. Materials to get - Mention the key items they'll need to buy
+7. Safety first - Important warnings they must follow
+8. Pro tips - 2-3 insider tips for better results
 
-Do NOT show the JSON. Just give a natural, conversational answer.
-"""
+IMPORTANT FORMATTING RULES:
+- Do NOT use any markdown formatting
+- Do NOT use ** for bold
+- Do NOT use # for headers
+- Do NOT use bullet points with * or -
+- For steps, use numbers like: 1. Step one  2. Step two  3. Step three
+- Write in plain paragraphs with numbered steps only
+- Use regular text, no special formatting symbols
+
+Be encouraging if it's beginner-friendly, but be honest if it's complex. Use a warm, helpful tone like you're talking to a neighbor."""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg},
-        ],
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=600,
-        temperature=0.5,
+        temperature=0.6,
     )
 
     return response.choices[0].message.content
 
 
-# Singleton instance for easy importing in views
+
 analyzer = RepairAnalyzer()
