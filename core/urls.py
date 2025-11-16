@@ -13,8 +13,7 @@ from .views import messages_view
 
 router = DefaultRouter()
 
-# I needed to comment this here
-# router.register(r"messages", ChatMessageViewSet) 
+router.register(r"messages", ChatMessageViewSet) 
 
 urlpatterns = [
     path("", include(router.urls)),

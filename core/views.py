@@ -47,7 +47,6 @@ def analyze_image_view(request):
     else:
         base64_data = image  # assume it's already raw base64
 
-    # For now, just echo back some info so we know it's working
     return Response(
         {
             "success": True,
@@ -80,11 +79,10 @@ def analyze_image_upload_view(request):
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
     media_type = image_file.content_type or "image/jpeg"
 
-    # 🔹 Call your RepairAnalyzer (vision model)
     ai_result = analyzer.analyze_repair(
         image_base64=image_base64,
         description=description,
-        skill_level="beginner",         # later you can pass this from frontend
+        skill_level="beginner",        
         budget="moderate",
         location="United States",
         media_type=media_type,
@@ -96,7 +94,7 @@ def analyze_image_upload_view(request):
 
     analysis = ai_result["data"]
 
-    # 🔹 Optional: get a human-style explanation
+    # get a human-style explanation
     human_text = humanize_analysis(analysis, description)
 
     return Response(
