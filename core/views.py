@@ -109,3 +109,15 @@ def analyze_image_upload_view(request):
         },
         status=status.HTTP_200_OK,
     )
+
+messages_store = []
+
+@api_view(['GET', 'POST'])
+def messages_view(request):
+    if request.method == 'GET':
+        return Response(messages_store)
+    
+    elif request.method == 'POST':
+        message = request.data
+        messages_store.append(message)
+        return Response(message, status=201)
